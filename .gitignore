@@ -1,0 +1,28 @@
+# Реальные данные — никогда не коммитить
+*.xlsx
+*.xls
+*.csv
+*.json
+*.db
+*.sqlite*
+*.parquet
+data/
+exports/
+legacy/
+
+# Синтетический пример — единственное исключение
+!sample_data.csv
+
+# Секреты
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# macOS
+.DS_Store
