@@ -56,10 +56,12 @@ python analyze.py path/to/deals.xlsx
 
 ```bash
 export BITRIX_WEBHOOK="https://<portal>.bitrix24.<tld>/rest/<user_id>/<token>/"
-Пример вывода на синтетических данных (`sample_data.csv`), цифры выдуманные:
-![Пример результата](docs/result.png)
 python analyze.py --fetch
 ```
+
+Пример вывода на синтетических данных (`sample_data.csv`), цифры выдуманные:
+![Пример результата](docs/result.png)
+
 
 ## Структура
 
