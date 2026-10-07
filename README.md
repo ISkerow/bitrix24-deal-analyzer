@@ -58,7 +58,7 @@ python analyze.py path/to/deals.xlsx
 export BITRIX_WEBHOOK="https://<portal>.bitrix24.<tld>/rest/<user_id>/<token>/"
 python analyze.py --fetch
 ```
-
+   ![Пример результата](docs/result.png)
 ## Структура
 
 ```
