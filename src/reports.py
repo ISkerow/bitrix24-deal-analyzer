@@ -4,9 +4,10 @@
 метрики, чтобы числа нельзя было прочитать сильнее, чем они есть.
 """
 
+import numpy as np
 import pandas as pd
 
-from .config import CSV_COLUMNS, MIN_MONTH_DEALS
+from .config import CLIENT_TZ, CSV_COLUMNS, MIN_MONTH_DEALS, WORK_END, WORK_START
 
 
 def _missing(df: pd.DataFrame, title: str, *cols: str) -> bool:
@@ -64,6 +65,36 @@ def report_stuck(df: pd.DataFrame) -> None:
     ch = stuck["channel"].value_counts()
     for name, n in ch.items():
         print(f"  {name:<10} {n:>5}  ({n / len(stuck) * 100:.1f}%)")
+
+
+def report_work_hours(df: pd.DataFrame) -> None:
+    """Доля застрявших заявок: будни в рабочее время, будни вне его, выходные.
+
+    Время создания переводится в часовой пояс клиента (CLIENT_TZ),
+    рабочие часы берутся из WORK_START и WORK_END. Праздники не учитываются.
+    """
+    if _missing(df, "Рабочее время", "STAGE_ID", "DATE_CREATE"):
+        return
+    local = df["created"].dt.tz_convert(CLIENT_TZ)
+    hhmm = local.dt.strftime("%H:%M")
+    period = np.select(
+        [local.dt.dayofweek >= 5,  # 5 — суббота, 6 — воскресенье
+         (hhmm >= WORK_START) & (hhmm < WORK_END)],
+        ["Выходные", "Будни, рабочее время"],
+        default="Будни, вне рабочего времени",
+    )
+
+    order = ["Будни, рабочее время", "Будни, вне рабочего времени", "Выходные"]
+    t = df.groupby(period)["is_stuck"].agg(заявок="size", застряло="sum")
+    t = t.reindex(order, fill_value=0)
+    t["доля_%"] = (t["застряло"] / t["заявок"] * 100).round(1)
+    t.index.name = "когда создана"
+
+    print("\n" + "=" * 60)
+    print(f"ЗАСТРЯВШИЕ ПО ВРЕМЕНИ СОЗДАНИЯ ({WORK_START}–{WORK_END}, {CLIENT_TZ})")
+    print("=" * 60)
+    print(t.to_string(na_rep="—"))
+    print("\nДоля — от заявок, созданных в этот период. «—» — заявок не было.")
 
 
 def report_whatsapp_monthly(df: pd.DataFrame) -> None:

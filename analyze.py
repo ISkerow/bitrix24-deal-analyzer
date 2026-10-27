@@ -37,6 +37,7 @@ from src.reports import (
     report_pipelines,
     report_stuck,
     report_whatsapp_monthly,
+    report_work_hours,
 )
 
 
@@ -60,6 +61,7 @@ def main() -> None:
     field_coverage(df)
     report_pipelines(df)
     report_stuck(df)
+    report_work_hours(df)
     report_whatsapp_monthly(df)
     report_lag(df)
     report_money(df)

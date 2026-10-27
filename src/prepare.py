@@ -5,6 +5,7 @@ import pandas as pd
 
 from .config import (
     CALL_SOURCES,
+    CLIENT_TZ,
     CSV_COLUMNS,
     NEW_PIPELINE,
     STUCK_STAGES,
@@ -80,11 +81,18 @@ def load(path: str) -> pd.DataFrame:
 
 
 def _to_datetime(s: pd.Series) -> pd.Series:
-    """Даты из API ("2024-05-01T10:00:00+03:00") и из интерфейса ("01.05.2024 10:00:00")."""
+    """Даты из API ("2024-05-01T10:00:00+03:00") и из интерфейса ("01.05.2024 10:00:00").
+
+    У дат из интерфейса нет часового пояса: считаем, что это время клиента
+    (CLIENT_TZ). Результат всегда в UTC.
+    """
     try:
         return pd.to_datetime(s, format="ISO8601", utc=True)
     except ValueError:
-        return pd.to_datetime(s, dayfirst=True, utc=True)
+        local = pd.to_datetime(s, dayfirst=True)
+        # nonexistent/ambiguous — на случай часа перевода часов (летнее время).
+        local = local.dt.tz_localize(CLIENT_TZ, nonexistent="shift_forward", ambiguous="NaT")
+        return local.dt.tz_convert("UTC")
 
 
 def prepare(df: pd.DataFrame) -> pd.DataFrame:
