@@ -12,6 +12,7 @@ from .config import (
     KEEP_COLUMNS,
     MANAGERS_MAP_FILE,
     NEW_PIPELINE,
+    STUCK_MIN_HOURS,
     STUCK_STAGES,
     WHATSAPP_PATTERNS,
     WHATSAPP_SOURCES,
@@ -115,7 +116,9 @@ def prepare(df: pd.DataFrame) -> pd.DataFrame:
     """Добавляет производные колонки: канал, воронку, флаги стадий, лаг.
 
     Возвращает копию исходного DataFrame с колонками:
-    created, modified, lag_hours, channel, pipeline, is_stuck, is_won.
+    created, modified, lag_hours, channel, pipeline, is_old_enough, is_stuck, is_won.
+    is_old_enough — с создания до среза прошло больше STUCK_MIN_HOURS;
+    застрявшей считается только такая заявка, и только такие входят в доли.
     Колонка не создаётся, если в данных нет исходной колонки для неё.
     """
     df = df.copy()
@@ -148,7 +151,14 @@ def prepare(df: pd.DataFrame) -> pd.DataFrame:
             df["pipeline"] = np.where(
                 stage.str.startswith(f"{NEW_PIPELINE}:"), f"новая ({NEW_PIPELINE})", "старая"
             )
-        df["is_stuck"] = stage.isin(resolve_stages(stage, STUCK_STAGES, "NEW"))
+        if "created" in df and "modified" in df:
+            # Срез — самая поздняя дата изменения в данных (как в отчётах).
+            age = df["modified"].max() - df["created"]
+            df["is_old_enough"] = age > pd.Timedelta(hours=STUCK_MIN_HOURS)
+        else:
+            df["is_old_enough"] = True  # без дат возраст не узнать — учитываем все
+        on_stuck_stage = stage.isin(resolve_stages(stage, STUCK_STAGES, "NEW"))
+        df["is_stuck"] = on_stuck_stage & df["is_old_enough"]
         df["is_won"] = stage.isin(resolve_stages(stage, WON_STAGES, "WON"))
     return df
 

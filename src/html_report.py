@@ -8,7 +8,14 @@ import html
 
 import pandas as pd
 
-from .config import CLIENT_TZ, REPORT_HTML, TRAFFIC_LIGHTS, WORK_END, WORK_START
+from .config import (
+    CLIENT_TZ,
+    REPORT_HTML,
+    STUCK_MIN_HOURS,
+    TRAFFIC_LIGHTS,
+    WORK_END,
+    WORK_START,
+)
 from .reports import work_period
 
 # Цвет светофора -> (цвет на странице, подпись словом — для тех, кто плохо различает цвета).
@@ -24,7 +31,7 @@ LIGHTS = {
     "whatsapp_stuck": ("Необработано WhatsApp-заявок", "%"),
     "offhours_stuck": ("Необработано заявок вне рабочего времени и в выходные", "%"),
     "stuck_age_days": ("Медианный возраст необработанной заявки", " дн."),
-    "never_opened": ("Заявки, которые ни разу не открывали", "%"),
+    "no_changes": ("Заявки без единого изменения после создания", "%"),
     "conversion": ("Конверсия в выигранные сделки", "%"),
 }
 
@@ -88,17 +95,18 @@ def compute_metrics(df: pd.DataFrame) -> dict[str, float | None]:
     """Считает показатели страницы. Если для показателя нет данных — None."""
     m = dict.fromkeys(TRAFFIC_LIGHTS)  # сначала у всех «нет данных»
     if "is_stuck" in df:
-        m["stuck_share"] = _pct(df["is_stuck"])
+        old = df[df["is_old_enough"]]  # в доли застрявших входят только заявки старше STUCK_MIN_HOURS
+        m["stuck_share"] = _pct(old["is_stuck"])
         if "channel" in df:
-            m["whatsapp_stuck"] = _pct(df.loc[df["channel"] == "WhatsApp", "is_stuck"])
+            m["whatsapp_stuck"] = _pct(old.loc[old["channel"] == "WhatsApp", "is_stuck"])
         if "created" in df:
-            off = work_period(df) != "Будни, рабочее время"
-            m["offhours_stuck"] = _pct(df.loc[off, "is_stuck"])
+            off = work_period(old) != "Будни, рабочее время"
+            m["offhours_stuck"] = _pct(old.loc[off, "is_stuck"])
         if "created" in df and "modified" in df and df["is_stuck"].any():
             age = (df["modified"].max() - df.loc[df["is_stuck"], "created"]).dt.days
             m["stuck_age_days"] = float(age.median())
     if "lag_hours" in df:
-        m["never_opened"] = _pct(df["lag_hours"] < 0.017)  # меньше минуты, как в report_lag
+        m["no_changes"] = _pct(df["lag_hours"] < 0.017)  # меньше минуты, как в report_lag
     if "is_won" in df:
         m["conversion"] = _pct(df["is_won"])
     return m
@@ -116,11 +124,14 @@ def save_html_report(df: pd.DataFrame, path: str = REPORT_HTML) -> None:
 
     share = m["stuck_share"]
     color, word = COLORS[_light(share, *TRAFFIC_LIGHTS["stuck_share"])]
-    if share is None:
+    if share is None and "is_stuck" in df:
+        big, caption = "—", f"нет заявок старше {STUCK_MIN_HOURS} ч на дату среза"
+    elif share is None:
         big, caption = "—", "нет данных о стадиях сделок"
     else:
-        n = int(df["is_stuck"].sum())
-        big, caption = f"{share:.0f}%", f"заявок так и не обработаны ({n} из {len(df)})"
+        n, counted = int(df["is_stuck"].sum()), int(df["is_old_enough"].sum())
+        caption = f"заявок так и не обработаны ({n} из {counted} старше {STUCK_MIN_HOURS} ч)"
+        big = f"{share:.0f}%"
 
     rows = []
     for key, (label, unit) in LIGHTS.items():

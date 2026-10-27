@@ -12,6 +12,7 @@ from .config import (
     CSV_COLUMNS,
     MIN_MANAGER_DEALS,
     MIN_MONTH_DEALS,
+    STUCK_MIN_HOURS,
     WORK_END,
     WORK_START,
 )
@@ -30,6 +31,18 @@ def _missing(df: pd.DataFrame, title: str, *cols: str) -> bool:
     names = ", ".join(f"{c} («{ru[c]}»)" if c in ru else c for c in missing)
     print(f"\nОтчёт «{title}» пропущен: в файле нет колонки {names}.")
     return True
+
+
+def _only_old_enough(df: pd.DataFrame, title: str) -> pd.DataFrame | None:
+    """Оставляет заявки старше STUCK_MIN_HOURS — только они входят в доли застрявших.
+
+    Если таких нет — печатает, что отчёт пропущен, и возвращает None.
+    """
+    old = df[df["is_old_enough"]]
+    if old.empty:
+        print(f"\nОтчёт «{title}» пропущен: нет заявок старше {STUCK_MIN_HOURS} ч на дату среза.")
+        return None
+    return old
 
 
 def report_pipelines(df: pd.DataFrame) -> None:
@@ -52,17 +65,24 @@ def report_stuck(df: pd.DataFrame) -> None:
     """Сколько заявок застряло на стадии NEW и как давно они висят."""
     if _missing(df, "Необработанные заявки", "STAGE_ID", "DATE_CREATE", "DATE_MODIFY", "SOURCE_ID"):
         return
-    ref =df["modified"].max()  # точка отсчёта — из данных, не now()
+    ref = df["modified"].max()  # точка отсчёта — из данных, не now()
+    counted = df[df["is_old_enough"]]  # только они входят в долю
     stuck = df[df["is_stuck"]]
     stages = ", ".join(sorted(stuck["STAGE_ID"].astype(str).unique())) or "—"
 
     print("\n" + "=" * 60)
     print(f"НЕОБРАБОТАННЫЕ ЗАЯВКИ (стадия {stages}).  Срез на {ref.date()}")
     print("=" * 60)
+    fresh = len(df) - len(counted)
+    if fresh:
+        print(f"Моложе {STUCK_MIN_HOURS} ч на дату среза: {fresh} — не учитываются, их ещё не успели взять.")
+    if counted.empty:
+        print(f"Нет заявок старше {STUCK_MIN_HOURS} ч — долю застрявших посчитать нельзя.")
+        return
     if stuck.empty:
         print("Застрявших заявок нет.")
         return
-    print(f"Всего застряло: {len(stuck)} из {len(df)} ({len(stuck) / len(df) * 100:.1f}%)")
+    print(f"Всего застряло: {len(stuck)} из {len(counted)} ({len(stuck) / len(counted) * 100:.1f}%)")
 
     age = (ref - stuck["created"]).dt.days
     print(f"Возраст заявки: медиана {age.median():.0f} дн, среднее {age.mean():.0f} дн")
@@ -95,6 +115,9 @@ def report_work_hours(df: pd.DataFrame) -> None:
     """Доля застрявших заявок: будни в рабочее время, будни вне его, выходные."""
     if _missing(df, "Рабочее время", "STAGE_ID", "DATE_CREATE"):
         return
+    df = _only_old_enough(df, "Рабочее время")
+    if df is None:
+        return
     period = work_period(df)
 
     order = ["Будни, рабочее время", "Будни, вне рабочего времени", "Выходные"]
@@ -118,6 +141,9 @@ def report_by_manager(df: pd.DataFrame, min_deals: int = MIN_MANAGER_DEALS) -> N
     на малой выборке доля ничего не значит.
     """
     if _missing(df, "По менеджерам", "STAGE_ID", "ASSIGNED_BY_ID"):
+        return
+    df = _only_old_enough(df, "По менеджерам")
+    if df is None:
         return
     manager = df["ASSIGNED_BY_ID"].fillna("не указан")
     t = df.groupby(manager)["is_stuck"].agg(заявок="size", застряло="sum")
@@ -153,10 +179,11 @@ def report_whatsapp_monthly(df: pd.DataFrame) -> None:
     """
     if _missing(df, "WhatsApp по месяцам", "ID", "SOURCE_ID", "STAGE_ID", "DATE_CREATE"):
         return
-    wa =df[df["channel"] == "WhatsApp"].copy()
+    wa = df[df["channel"] == "WhatsApp"].copy()
     if wa.empty:
         print("\nWhatsApp-канал не найден — проверь WHATSAPP_PATTERNS")
         return
+    wa = wa[wa["is_old_enough"]]  # свежие заявки в доли не входят
 
     wa["month"] = wa["created"].dt.strftime("%Y-%m")
     t = wa.groupby("month").agg(создано=("ID", "size"), застряло=("is_stuck", "sum"))
@@ -195,7 +222,7 @@ def report_lag(df: pd.DataFrame) -> None:
     print(t.to_string())
 
     never = (df["lag_hours"] < 0.017).sum()
-    print(f"\nНи разу не открывали: {never} ({never / len(df) * 100:.1f}%)")
+    print(f"\nЗаявки без единого изменения после создания: {never} ({never / len(df) * 100:.1f}%)")
     print("Точное время ПЕРВОГО касания требует crm.activity.list — здесь его нет.")
 
 
@@ -203,7 +230,7 @@ def report_money(df: pd.DataFrame) -> None:
     """Оценка упущенных продаж: конверсия, средний чек, потери в деньгах."""
     if _missing(df, "Оценка потерь", "STAGE_ID", "OPPORTUNITY"):
         return
-    won =df[df["is_won"]]
+    won = df[df["is_won"]]
     stuck_n = int(df["is_stuck"].sum())
     conv = len(won) / len(df) if len(df) else 0
 
