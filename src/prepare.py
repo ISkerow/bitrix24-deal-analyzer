@@ -1,5 +1,7 @@
 """Подготовка данных: производные поля и проверка заполненности."""
 
+import os
+
 import numpy as np
 import pandas as pd
 
@@ -7,6 +9,7 @@ from .config import (
     CALL_SOURCES,
     CLIENT_TZ,
     CSV_COLUMNS,
+    MANAGERS_MAP_FILE,
     NEW_PIPELINE,
     STUCK_STAGES,
     WHATSAPP_PATTERNS,
@@ -51,16 +54,19 @@ def _to_number(s: pd.Series) -> pd.Series:
     return pd.to_numeric(cleaned, errors="coerce")
 
 
-def _anonymize_managers(s: pd.Series) -> pd.Series:
+def _anonymize_managers(s: pd.Series) -> tuple[pd.Series, pd.DataFrame | None]:
     """Если в колонке имена, а не числовые ID, заменяет их на «Менеджер 1», «Менеджер 2»…
 
-    Номер выдаётся по порядку первого появления в файле. Сами имена
-    нигде не сохраняются. Числовые ID остаются как есть.
+    Номер выдаётся по порядку первого появления в файле. Возвращает пару:
+    новую колонку и таблицу соответствия «менеджер → имя». Если в колонке
+    числовые ID, колонка не меняется, а вместо таблицы — None.
     """
     if pd.to_numeric(s, errors="coerce").notna().sum() == s.notna().sum():
-        return s
-    codes, _ = pd.factorize(s)
-    return pd.Series([f"Менеджер {c + 1}" if c >= 0 else None for c in codes], index=s.index)
+        return s, None
+    codes, names = pd.factorize(s)
+    labels = [f"Менеджер {i + 1}" for i in range(len(names))]
+    anon = pd.Series([labels[c] if c >= 0 else None for c in codes], index=s.index)
+    return anon, pd.DataFrame({"менеджер": labels, "имя": names})
 
 
 def load(path: str) -> pd.DataFrame:
@@ -68,7 +74,8 @@ def load(path: str) -> pd.DataFrame:
 
     Русские названия колонок из интерфейса Битрикс24 переименовываются
     в коды API (см. CSV_COLUMNS), суммы превращаются в числа,
-    имена ответственных — в «Менеджер N».
+    имена ответственных — в «Менеджер N». Соответствие «Менеджер N → имя»
+    сохраняется в MANAGERS_MAP_FILE рядом с выгрузкой (только если были имена).
     """
     df = _read_csv(path) if path.endswith(".csv") else pd.read_excel(path)
     df.columns = [str(c).strip() for c in df.columns]
@@ -76,7 +83,12 @@ def load(path: str) -> pd.DataFrame:
     if "OPPORTUNITY" in df:
         df["OPPORTUNITY"] = _to_number(df["OPPORTUNITY"])
     if "ASSIGNED_BY_ID" in df:
-        df["ASSIGNED_BY_ID"] = _anonymize_managers(df["ASSIGNED_BY_ID"])
+        anon, mapping = _anonymize_managers(df["ASSIGNED_BY_ID"])
+        df["ASSIGNED_BY_ID"] = anon
+        if mapping is not None:
+            map_path = os.path.join(os.path.dirname(path), MANAGERS_MAP_FILE)
+            mapping.to_csv(map_path, index=False, encoding="utf-8-sig")
+            print(f"Соответствие менеджеров сохранено: {map_path} (не публиковать)")
     return df
 
 
