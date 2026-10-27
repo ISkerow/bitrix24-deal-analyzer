@@ -3,7 +3,20 @@
 import numpy as np
 import pandas as pd
 
-from .config import CALL_SOURCES, WHATSAPP_PATTERNS
+from .config import (
+    CALL_SOURCES,
+    NEW_PIPELINE,
+    STUCK_STAGES,
+    WHATSAPP_PATTERNS,
+    WON_STAGES,
+)
+
+
+def resolve_stages(stage: pd.Series, configured: list[str], suffix: str) -> list[str]:
+    """Возвращает стадии из config, а если список пуст — все стадии на suffix."""
+    if configured:
+        return list(configured)
+    return sorted(s for s in stage.unique() if s.endswith(suffix))
 
 
 def load(path: str) -> pd.DataFrame:
@@ -36,9 +49,11 @@ def prepare(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     stage = df["STAGE_ID"].astype(str)
-    df["pipeline"] = np.where(stage.str.startswith("C15:"), "новая (C15)", "старая")
-    df["is_stuck"] = stage.eq("C15:NEW")
-    df["is_won"] = stage.isin(["WON", "C15:WON"])
+    df["pipeline"] = np.where(
+        stage.str.startswith(f"{NEW_PIPELINE}:"), f"новая ({NEW_PIPELINE})", "старая"
+    )
+    df["is_stuck"] = stage.isin(resolve_stages(stage, STUCK_STAGES, "NEW"))
+    df["is_won"] = stage.isin(resolve_stages(stage, WON_STAGES, "WON"))
     return df
 
 
