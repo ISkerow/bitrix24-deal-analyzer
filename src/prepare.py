@@ -9,6 +9,7 @@ from .config import (
     CALL_SOURCES,
     CLIENT_TZ,
     CSV_COLUMNS,
+    KEEP_COLUMNS,
     MANAGERS_MAP_FILE,
     NEW_PIPELINE,
     STUCK_STAGES,
@@ -76,10 +77,13 @@ def load(path: str) -> pd.DataFrame:
     в коды API (см. CSV_COLUMNS), суммы превращаются в числа,
     имена ответственных — в «Менеджер N». Соответствие «Менеджер N → имя»
     сохраняется в MANAGERS_MAP_FILE рядом с выгрузкой (только если были имена).
+    Колонки не из KEEP_COLUMNS (комментарии, контакты и т. п.) удаляются сразу.
     """
     df = _read_csv(path) if path.endswith(".csv") else pd.read_excel(path)
     df.columns = [str(c).strip() for c in df.columns]
     df = df.rename(columns=CSV_COLUMNS)
+    # Белый список: остаются только нужные анализу колонки (см. KEEP_COLUMNS).
+    df = df[[c for c in KEEP_COLUMNS if c in df]]
     if "OPPORTUNITY" in df:
         df["OPPORTUNITY"] = _to_number(df["OPPORTUNITY"])
     if "ASSIGNED_BY_ID" in df:
