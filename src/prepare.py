@@ -9,6 +9,7 @@ from .config import (
     NEW_PIPELINE,
     STUCK_STAGES,
     WHATSAPP_PATTERNS,
+    WHATSAPP_SOURCES,
     WON_STAGES,
 )
 
@@ -49,17 +50,32 @@ def _to_number(s: pd.Series) -> pd.Series:
     return pd.to_numeric(cleaned, errors="coerce")
 
 
+def _anonymize_managers(s: pd.Series) -> pd.Series:
+    """Если в колонке имена, а не числовые ID, заменяет их на «Менеджер 1», «Менеджер 2»…
+
+    Номер выдаётся по порядку первого появления в файле. Сами имена
+    нигде не сохраняются. Числовые ID остаются как есть.
+    """
+    if pd.to_numeric(s, errors="coerce").notna().sum() == s.notna().sum():
+        return s
+    codes, _ = pd.factorize(s)
+    return pd.Series([f"Менеджер {c + 1}" if c >= 0 else None for c in codes], index=s.index)
+
+
 def load(path: str) -> pd.DataFrame:
     """Читает выгрузку (csv или xlsx) и приводит её к единому виду.
 
     Русские названия колонок из интерфейса Битрикс24 переименовываются
-    в коды API (см. CSV_COLUMNS), суммы превращаются в числа.
+    в коды API (см. CSV_COLUMNS), суммы превращаются в числа,
+    имена ответственных — в «Менеджер N».
     """
     df = _read_csv(path) if path.endswith(".csv") else pd.read_excel(path)
     df.columns = [str(c).strip() for c in df.columns]
     df = df.rename(columns=CSV_COLUMNS)
     if "OPPORTUNITY" in df:
         df["OPPORTUNITY"] = _to_number(df["OPPORTUNITY"])
+    if "ASSIGNED_BY_ID" in df:
+        df["ASSIGNED_BY_ID"] = _anonymize_managers(df["ASSIGNED_BY_ID"])
     return df
 
 
@@ -92,7 +108,8 @@ def prepare(df: pd.DataFrame) -> pd.DataFrame:
     if "SOURCE_ID" in df:
         src = df["SOURCE_ID"].astype(str)
         df["channel"] = np.select(
-            [src.str.contains(WHATSAPP_PATTERNS, na=False, regex=True),
+            [src.str.contains(WHATSAPP_PATTERNS, case=False, na=False, regex=True)
+             | df["SOURCE_ID"].isin(WHATSAPP_SOURCES),
              df["SOURCE_ID"].isin(CALL_SOURCES)],
             ["WhatsApp", "Звонок"],
             default="Прочее",
@@ -100,9 +117,13 @@ def prepare(df: pd.DataFrame) -> pd.DataFrame:
 
     if "STAGE_ID" in df:
         stage = df["STAGE_ID"].astype(str)
-        df["pipeline"] = np.where(
-            stage.str.startswith(f"{NEW_PIPELINE}:"), f"новая ({NEW_PIPELINE})", "старая"
-        )
+        if "PIPELINE_NAME" in df:
+            # В CSV из интерфейса воронка уже подписана названием.
+            df["pipeline"] = df["PIPELINE_NAME"].fillna("—").astype(str)
+        else:
+            df["pipeline"] = np.where(
+                stage.str.startswith(f"{NEW_PIPELINE}:"), f"новая ({NEW_PIPELINE})", "старая"
+            )
         df["is_stuck"] = stage.isin(resolve_stages(stage, STUCK_STAGES, "NEW"))
         df["is_won"] = stage.isin(resolve_stages(stage, WON_STAGES, "WON"))
     return df
