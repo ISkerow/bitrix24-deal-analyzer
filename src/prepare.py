@@ -13,10 +13,15 @@ from .config import (
 
 
 def resolve_stages(stage: pd.Series, configured: list[str], suffix: str) -> list[str]:
-    """Возвращает стадии из config, а если список пуст — все стадии на suffix."""
+    """Возвращает стадии из config, а если список пуст — найденные автоматически.
+
+    Автоматически берётся стадия, равная suffix ("NEW") или оканчивающаяся
+    на ":" + suffix ("C15:NEW"). Пользовательские стадии вроде UC_RENEW
+    не подходят, хотя тоже заканчиваются на NEW.
+    """
     if configured:
         return list(configured)
-    return sorted(s for s in stage.unique() if s.endswith(suffix))
+    return sorted(s for s in stage.unique() if s == suffix or s.endswith(":" + suffix))
 
 
 def load(path: str) -> pd.DataFrame:
