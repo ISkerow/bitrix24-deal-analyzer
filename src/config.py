@@ -63,4 +63,8 @@ MIN_MANAGER_DEALS = 20
 
 # Куда fetch сохраняет выгрузку и что анализируется по умолчанию.
 RAW_XLSX = "bitrix_leads.xlsx"
+
+# Файл соответствия «Менеджер N → имя». Создаётся рядом с выгрузкой,
+# только если в «Ответственном» были имена. Содержит имена — не публиковать.
+MANAGERS_MAP_FILE = "managers_map.csv"
 DEFAULT_DATA_FILE = "sample_data.csv"
