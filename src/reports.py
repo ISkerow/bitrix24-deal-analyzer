@@ -7,7 +7,14 @@
 import numpy as np
 import pandas as pd
 
-from .config import CLIENT_TZ, CSV_COLUMNS, MIN_MONTH_DEALS, WORK_END, WORK_START
+from .config import (
+    CLIENT_TZ,
+    CSV_COLUMNS,
+    MIN_MANAGER_DEALS,
+    MIN_MONTH_DEALS,
+    WORK_END,
+    WORK_START,
+)
 
 
 def _missing(df: pd.DataFrame, title: str, *cols: str) -> bool:
@@ -95,6 +102,40 @@ def report_work_hours(df: pd.DataFrame) -> None:
     print("=" * 60)
     print(t.to_string(na_rep="—"))
     print("\nДоля — от заявок, созданных в этот период. «—» — заявок не было.")
+
+
+def report_by_manager(df: pd.DataFrame, min_deals: int = MIN_MANAGER_DEALS) -> None:
+    """Застрявшие заявки по ответственным: сколько заявок, сколько застряло, доля.
+
+    Только ID: имена заменяются на «Менеджер N» ещё при загрузке (prepare.load).
+    Менеджеры, у кого меньше min_deals заявок, собраны в строку «остальные»:
+    на малой выборке доля ничего не значит.
+    """
+    if _missing(df, "По менеджерам", "STAGE_ID", "ASSIGNED_BY_ID"):
+        return
+    manager = df["ASSIGNED_BY_ID"].fillna("не указан")
+    t = df.groupby(manager)["is_stuck"].agg(заявок="size", застряло="sum")
+    t["доля_%"] = (t["застряло"] / t["заявок"] * 100).round(1)
+
+    small = t["заявок"] < min_deals
+    shown = t[~small].sort_values(["доля_%", "заявок"], ascending=False)
+    if small.any():
+        rest = t[small]
+        n, s = rest["заявок"].sum(), rest["застряло"].sum()
+        row = pd.DataFrame(
+            {"заявок": [n], "застряло": [s], "доля_%": [round(s / n * 100, 1)]},
+            index=[f"остальные ({small.sum()} чел.)"],
+        )
+        shown = pd.concat([shown, row])
+    shown.index.name = "ответственный"
+
+    print("\n" + "=" * 60)
+    print(f"ЗАСТРЯВШИЕ ПО МЕНЕДЖЕРАМ (отдельно — у кого {min_deals}+ заявок)")
+    print("=" * 60)
+    print(shown.to_string())
+    if small.all():
+        print(f"\nНи у кого нет {min_deals}+ заявок — по отдельности не показываем.")
+    print("Сортировка: по доле застрявших, сверху — самая высокая.")
 
 
 def report_whatsapp_monthly(df: pd.DataFrame) -> None:

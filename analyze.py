@@ -32,6 +32,7 @@ from src.config import DEFAULT_DATA_FILE
 from src.fetch import fetch_deals
 from src.prepare import field_coverage, load, prepare
 from src.reports import (
+    report_by_manager,
     report_lag,
     report_money,
     report_pipelines,
@@ -62,6 +63,7 @@ def main() -> None:
     report_pipelines(df)
     report_stuck(df)
     report_work_hours(df)
+    report_by_manager(df)
     report_whatsapp_monthly(df)
     report_lag(df)
     report_money(df)
