@@ -6,11 +6,28 @@
 
 import pandas as pd
 
-from .config import MIN_MONTH_DEALS
+from .config import CSV_COLUMNS, MIN_MONTH_DEALS
+
+
+def _missing(df: pd.DataFrame, title: str, *cols: str) -> bool:
+    """Проверяет, есть ли в данных колонки, нужные отчёту.
+
+    Если чего-то нет — печатает, какого именно, и возвращает True:
+    тогда отчёт надо пропустить.
+    """
+    missing = [c for c in cols if c not in df]
+    if not missing:
+        return False
+    ru = {code: name for name, code in CSV_COLUMNS.items()}
+    names = ", ".join(f"{c} («{ru[c]}»)" if c in ru else c for c in missing)
+    print(f"\nОтчёт «{title}» пропущен: в файле нет колонки {names}.")
+    return True
 
 
 def report_pipelines(df: pd.DataFrame) -> None:
     """Размер и период каждой воронки; напоминает, что их нельзя смешивать."""
+    if _missing(df, "Воронки", "ID", "STAGE_ID", "DATE_CREATE"):
+        return
     print("\n" + "=" * 60)
     print("ВОРОНКИ")
     print("=" * 60)
@@ -25,7 +42,9 @@ def report_pipelines(df: pd.DataFrame) -> None:
 
 def report_stuck(df: pd.DataFrame) -> None:
     """Сколько заявок застряло на стадии NEW и как давно они висят."""
-    ref = df["modified"].max()  # точка отсчёта — из данных, не now()
+    if _missing(df, "Необработанные заявки", "STAGE_ID", "DATE_CREATE", "DATE_MODIFY", "SOURCE_ID"):
+        return
+    ref =df["modified"].max()  # точка отсчёта — из данных, не now()
     stuck = df[df["is_stuck"]]
     stages = ", ".join(sorted(stuck["STAGE_ID"].astype(str).unique())) or "—"
 
@@ -54,7 +73,9 @@ def report_whatsapp_monthly(df: pd.DataFrame) -> None:
     а в поздних доля необработанных растёт — проблема в объёме
     и процессе, а не в самом канале.
     """
-    wa = df[df["channel"] == "WhatsApp"].copy()
+    if _missing(df, "WhatsApp по месяцам", "ID", "SOURCE_ID", "STAGE_ID", "DATE_CREATE"):
+        return
+    wa =df[df["channel"] == "WhatsApp"].copy()
     if wa.empty:
         print("\nWhatsApp-канал не найден — проверь WHATSAPP_PATTERNS")
         return
@@ -82,6 +103,8 @@ def report_whatsapp_monthly(df: pd.DataFrame) -> None:
 
 def report_lag(df: pd.DataFrame) -> None:
     """Лаг создание→последнее изменение по каналам (верхняя оценка ответа)."""
+    if _missing(df, "Лаг до последнего изменения", "SOURCE_ID", "DATE_CREATE", "DATE_MODIFY"):
+        return
     print("\n" + "=" * 60)
     print("ЛАГ ДО ПОСЛЕДНЕГО ИЗМЕНЕНИЯ (верхняя оценка времени ответа)")
     print("=" * 60)
@@ -100,7 +123,9 @@ def report_lag(df: pd.DataFrame) -> None:
 
 def report_money(df: pd.DataFrame) -> None:
     """Оценка упущенных продаж: конверсия, средний чек, потери в деньгах."""
-    won = df[df["is_won"]]
+    if _missing(df, "Оценка потерь", "STAGE_ID", "OPPORTUNITY"):
+        return
+    won =df[df["is_won"]]
     stuck_n = int(df["is_stuck"].sum())
     conv = len(won) / len(df) if len(df) else 0
 

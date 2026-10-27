@@ -54,7 +54,8 @@ def main() -> None:
     df = prepare(raw)
 
     print(f"\nЗагружено сделок: {len(df)}")
-    print(f"Период: {df['created'].min().date()} — {df['created'].max().date()}")
+    if "created" in df:
+        print(f"Период: {df['created'].min().date()} — {df['created'].max().date()}")
 
     field_coverage(df)
     report_pipelines(df)
