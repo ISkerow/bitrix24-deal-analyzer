@@ -30,6 +30,7 @@ import sys
 
 from src.config import DEFAULT_DATA_FILE
 from src.fetch import fetch_deals
+from src.html_report import save_html_report
 from src.prepare import field_coverage, load, prepare
 from src.reports import (
     report_by_manager,
@@ -67,6 +68,7 @@ def main() -> None:
     report_whatsapp_monthly(df)
     report_lag(df)
     report_money(df)
+    save_html_report(df)
 
     print("\n" + "=" * 60)
     print("Реальные данные не публикуются: только агрегаты, без строк и названий.")

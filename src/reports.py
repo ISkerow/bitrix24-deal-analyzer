@@ -74,22 +74,28 @@ def report_stuck(df: pd.DataFrame) -> None:
         print(f"  {name:<10} {n:>5}  ({n / len(stuck) * 100:.1f}%)")
 
 
-def report_work_hours(df: pd.DataFrame) -> None:
-    """Доля застрявших заявок: будни в рабочее время, будни вне его, выходные.
+def work_period(df: pd.DataFrame) -> np.ndarray:
+    """Для каждой заявки — когда создана: «Будни, рабочее время», «Будни, вне
+    рабочего времени» или «Выходные».
 
     Время создания переводится в часовой пояс клиента (CLIENT_TZ),
     рабочие часы берутся из WORK_START и WORK_END. Праздники не учитываются.
     """
-    if _missing(df, "Рабочее время", "STAGE_ID", "DATE_CREATE"):
-        return
     local = df["created"].dt.tz_convert(CLIENT_TZ)
     hhmm = local.dt.strftime("%H:%M")
-    period = np.select(
+    return np.select(
         [local.dt.dayofweek >= 5,  # 5 — суббота, 6 — воскресенье
          (hhmm >= WORK_START) & (hhmm < WORK_END)],
         ["Выходные", "Будни, рабочее время"],
         default="Будни, вне рабочего времени",
     )
+
+
+def report_work_hours(df: pd.DataFrame) -> None:
+    """Доля застрявших заявок: будни в рабочее время, будни вне его, выходные."""
+    if _missing(df, "Рабочее время", "STAGE_ID", "DATE_CREATE"):
+        return
+    period = work_period(df)
 
     order = ["Будни, рабочее время", "Будни, вне рабочего времени", "Выходные"]
     t = df.groupby(period)["is_stuck"].agg(заявок="size", застряло="sum")
