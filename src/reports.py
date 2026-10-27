@@ -27,9 +27,10 @@ def report_stuck(df: pd.DataFrame) -> None:
     """Сколько заявок застряло на стадии NEW и как давно они висят."""
     ref = df["modified"].max()  # точка отсчёта — из данных, не now()
     stuck = df[df["is_stuck"]]
+    stages = ", ".join(sorted(stuck["STAGE_ID"].astype(str).unique())) or "—"
 
     print("\n" + "=" * 60)
-    print(f"НЕОБРАБОТАННЫЕ ЗАЯВКИ (стадия C15:NEW).  Срез на {ref.date()}")
+    print(f"НЕОБРАБОТАННЫЕ ЗАЯВКИ (стадия {stages}).  Срез на {ref.date()}")
     print("=" * 60)
     if stuck.empty:
         print("Застрявших заявок нет.")
