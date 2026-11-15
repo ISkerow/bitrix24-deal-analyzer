@@ -53,9 +53,10 @@ def main() -> None:
         path = args[0] if args else DEFAULT_DATA_FILE
         if not os.path.exists(path):
             sys.exit(f"Нет файла {path}. Укажи путь к данным или запусти с --fetch")
-        raw = load(path)
-        # Пример из репозитория — помечаем отчёт, чтобы его не приняли за настоящий.
+        # Пример из репозитория — помечаем отчёт, чтобы его не приняли за настоящий,
+        # и не сохраняем соответствие менеджеров: имена в примере выдуманные.
         synthetic = os.path.basename(path) == DEFAULT_DATA_FILE
+        raw = load(path, save_managers_map=not synthetic)
 
     df = prepare(raw)
 

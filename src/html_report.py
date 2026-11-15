@@ -179,6 +179,7 @@ def save_html_report(df: pd.DataFrame, path: str = REPORT_HTML, synthetic: bool 
         )
 
     banner = '<p class="synthetic">Данные синтетические: пример, цифры выдуманы.</p>' if synthetic else ""
+    # Пороги светофора задаются в TRAFFIC_LIGHTS (config.py); на странице об этом не пишем.
     hours = html.escape(f"{WORK_START}–{WORK_END}, {CLIENT_TZ}")
     page = f"""<!doctype html>
 <html lang="ru">
@@ -214,7 +215,7 @@ def save_html_report(df: pd.DataFrame, path: str = REPORT_HTML, synthetic: bool 
   </section>
 
   <footer>Данные обезличены: только доли и количества, без имён и контактов.
-  Рабочее время: {hours}. Пороги светофора — TRAFFIC_LIGHTS в config.py.</footer>
+  Рабочее время: {hours}.</footer>
 </main>
 </body>
 </html>

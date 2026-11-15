@@ -71,13 +71,15 @@ def _anonymize_managers(s: pd.Series) -> tuple[pd.Series, pd.DataFrame | None]:
     return anon, pd.DataFrame({"менеджер": labels, "имя": names})
 
 
-def load(path: str) -> pd.DataFrame:
+def load(path: str, save_managers_map: bool = True) -> pd.DataFrame:
     """Читает выгрузку (csv или xlsx) и приводит её к единому виду.
 
     Русские названия колонок из интерфейса Битрикс24 переименовываются
     в коды API (см. CSV_COLUMNS), суммы превращаются в числа,
     имена ответственных — в «Менеджер N». Соответствие «Менеджер N → имя»
     сохраняется в MANAGERS_MAP_FILE рядом с выгрузкой (только если были имена).
+    save_managers_map=False — не сохранять соответствие: так запускается пример,
+    чтобы он не затёр файл от настоящей выгрузки в той же папке.
     Колонки не из KEEP_COLUMNS (комментарии, контакты и т. п.) удаляются сразу.
     """
     df = _read_csv(path) if path.endswith(".csv") else pd.read_excel(path)
@@ -90,7 +92,7 @@ def load(path: str) -> pd.DataFrame:
     if "ASSIGNED_BY_ID" in df:
         anon, mapping = _anonymize_managers(df["ASSIGNED_BY_ID"])
         df["ASSIGNED_BY_ID"] = anon
-        if mapping is not None:
+        if mapping is not None and save_managers_map:
             map_path = os.path.join(os.path.dirname(path), MANAGERS_MAP_FILE)
             mapping.to_csv(map_path, index=False, encoding="utf-8-sig")
             print(f"Соответствие менеджеров сохранено: {map_path} (не публиковать)")

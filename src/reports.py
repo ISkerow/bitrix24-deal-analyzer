@@ -58,7 +58,8 @@ def report_pipelines(df: pd.DataFrame) -> None:
         период_по=("created", lambda s: s.max().date()),
     )
     print(t.to_string())
-    print("\nСтарая и новая воронки несопоставимы — не смешивать в одном числе.")
+    if len(t) > 1:  # при одной воронке предупреждать не о чем
+        print("\nСтарая и новая воронки несопоставимы — не смешивать в одном числе.")
 
 
 def report_stuck(df: pd.DataFrame) -> None:
