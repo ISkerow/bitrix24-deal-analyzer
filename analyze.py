@@ -55,7 +55,10 @@ def main() -> None:
             sys.exit(f"Нет файла {path}. Укажи путь к данным или запусти с --fetch")
         # Пример из репозитория — помечаем отчёт, чтобы его не приняли за настоящий,
         # и не сохраняем соответствие менеджеров: имена в примере выдуманные.
-        synthetic = os.path.basename(path) == DEFAULT_DATA_FILE
+        # Сравниваем сам файл, а не имя: чужая выгрузка с именем sample_data.csv
+        # в другой папке пример не изображает.
+        sample = os.path.join(os.path.dirname(os.path.abspath(__file__)), DEFAULT_DATA_FILE)
+        synthetic = os.path.exists(sample) and os.path.samefile(path, sample)
         raw = load(path, save_managers_map=not synthetic)
 
     df = prepare(raw)
