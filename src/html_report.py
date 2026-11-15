@@ -10,6 +10,7 @@ import pandas as pd
 
 from .config import (
     CLIENT_TZ,
+    MIN_PERIOD_DEALS,
     REPORT_HTML,
     STUCK_MIN_HOURS,
     TRAFFIC_LIGHTS,
@@ -29,6 +30,7 @@ COLORS = {
 # Показатели светофора: ключ из TRAFFIC_LIGHTS -> (подпись, единица измерения).
 LIGHTS = {
     "whatsapp_stuck": ("Необработано WhatsApp-заявок", "%"),
+    "workhours_stuck": ("Необработано заявок, созданных в будни в рабочее время", "%"),
     "offhours_stuck": ("Необработано заявок вне рабочего времени и в выходные", "%"),
     "stuck_age_days": ("Медианный возраст необработанной заявки", " дн."),
     "no_changes": ("Заявки без единого изменения после создания", "%"),
@@ -55,6 +57,8 @@ section { background: #fff; border-radius: 12px; padding: 20px 24px; margin-top:
 .todo ol { min-height: 120px; margin: 0; padding-left: 24px; outline: none; }
 .todo li { border-bottom: 1px solid #dadce0; min-height: 36px; }
 footer { margin-top: 16px; }
+.synthetic { background: #fff4ce; border: 1px solid #e8a200; border-radius: 8px;
+             padding: 8px 12px; margin: 0 0 16px; font-weight: 600; }
 @media print { body { background: #fff; } main { padding: 0; } section { padding: 12px 0; } }
 @page { size: A4; margin: 15mm; }
 """
@@ -91,6 +95,19 @@ def _hint(key: str, unit: str) -> str:
     return f"зелёный &gt; {yellow}{unit}, красный ≤ {red}{unit}"
 
 
+def period_sizes(df: pd.DataFrame) -> dict[str, int]:
+    """Сколько заявок (старше STUCK_MIN_HOURS) в каждом периоде светофора.
+
+    Нужно, чтобы не красить показатель, посчитанный по горстке заявок.
+    Пустой словарь — если периоды посчитать не по чему.
+    """
+    if "is_stuck" not in df or "created" not in df:
+        return {}
+    old = df[df["is_old_enough"]]
+    work = int((work_period(old) == "Будни, рабочее время").sum())
+    return {"workhours_stuck": work, "offhours_stuck": len(old) - work}
+
+
 def compute_metrics(df: pd.DataFrame) -> dict[str, float | None]:
     """Считает показатели страницы. Если для показателя нет данных — None."""
     m = dict.fromkeys(TRAFFIC_LIGHTS)  # сначала у всех «нет данных»
@@ -101,6 +118,7 @@ def compute_metrics(df: pd.DataFrame) -> dict[str, float | None]:
             m["whatsapp_stuck"] = _pct(old.loc[old["channel"] == "WhatsApp", "is_stuck"])
         if "created" in df:
             off = work_period(old) != "Будни, рабочее время"
+            m["workhours_stuck"] = _pct(old.loc[~off, "is_stuck"])
             m["offhours_stuck"] = _pct(old.loc[off, "is_stuck"])
         if "created" in df and "modified" in df and df["is_stuck"].any():
             age = (df["modified"].max() - df.loc[df["is_stuck"], "created"]).dt.days
@@ -112,8 +130,12 @@ def compute_metrics(df: pd.DataFrame) -> dict[str, float | None]:
     return m
 
 
-def save_html_report(df: pd.DataFrame, path: str = REPORT_HTML) -> None:
-    """Сохраняет одностраничный report.html с итогами анализа."""
+def save_html_report(df: pd.DataFrame, path: str = REPORT_HTML, synthetic: bool = False) -> None:
+    """Сохраняет одностраничный report.html с итогами анализа.
+
+    synthetic=True добавляет наверх заметную пометку «данные синтетические» —
+    для страницы, построенной по sample_data.csv.
+    """
     m = compute_metrics(df)
 
     meta = [f"сделок: {len(df)}"]
@@ -133,10 +155,17 @@ def save_html_report(df: pd.DataFrame, path: str = REPORT_HTML) -> None:
         caption = f"заявок так и не обработаны ({n} из {counted} старше {STUCK_MIN_HOURS} ч)"
         big = f"{share:.0f}%"
 
+    sizes = period_sizes(df)
     rows = []
     for key, (label, unit) in LIGHTS.items():
         value = m[key]
         c, w = COLORS[_light(value, *TRAFFIC_LIGHTS[key])]
+        hint = _hint(key, unit)
+        if value is not None and sizes.get(key, MIN_PERIOD_DEALS) < MIN_PERIOD_DEALS:
+            # Заявок в периоде слишком мало: ни цвета, ни цифры — только пояснение.
+            c, w = COLORS["grey"][0], "мало данных"
+            hint = f"заявок в периоде: {sizes[key]}, для оценки нужно от {MIN_PERIOD_DEALS}"
+            value = None
         if value is None:
             shown = "—"
         elif unit == " дн.":
@@ -145,10 +174,11 @@ def save_html_report(df: pd.DataFrame, path: str = REPORT_HTML) -> None:
             shown = f"{value:.1f}{unit}"
         rows.append(
             f'<tr><td><span class="dot" style="background:{c}"></span></td>'
-            f'<td>{label}<div class="hint">{_hint(key, unit)}</div></td>'
+            f'<td>{label}<div class="hint">{hint}</div></td>'
             f'<td class="val">{shown}</td><td class="word">{w}</td></tr>'
         )
 
+    banner = '<p class="synthetic">Данные синтетические: пример, цифры выдуманы.</p>' if synthetic else ""
     hours = html.escape(f"{WORK_START}–{WORK_END}, {CLIENT_TZ}")
     page = f"""<!doctype html>
 <html lang="ru">
@@ -160,6 +190,7 @@ def save_html_report(df: pd.DataFrame, path: str = REPORT_HTML) -> None:
 </head>
 <body>
 <main>
+  {banner}
   <h1>Обработка входящих заявок</h1>
   <p class="meta">{html.escape(" · ".join(meta))}</p>
 

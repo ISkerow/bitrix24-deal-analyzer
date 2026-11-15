@@ -46,6 +46,7 @@ from src.reports import (
 def main() -> None:
     """Точка входа: загружает данные, готовит их и печатает все отчёты."""
     args = [a for a in sys.argv[1:] if a != "--fetch"]
+    synthetic = False
     if "--fetch" in sys.argv:
         raw = fetch_deals()
     else:
@@ -53,9 +54,13 @@ def main() -> None:
         if not os.path.exists(path):
             sys.exit(f"Нет файла {path}. Укажи путь к данным или запусти с --fetch")
         raw = load(path)
+        # Пример из репозитория — помечаем отчёт, чтобы его не приняли за настоящий.
+        synthetic = os.path.basename(path) == DEFAULT_DATA_FILE
 
     df = prepare(raw)
 
+    if synthetic:
+        print("\nДАННЫЕ СИНТЕТИЧЕСКИЕ: это пример, все цифры выдуманы.")
     print(f"\nЗагружено сделок: {len(df)}")
     if "created" in df:
         print(f"Период: {df['created'].min().date()} — {df['created'].max().date()}")
@@ -68,7 +73,7 @@ def main() -> None:
     report_whatsapp_monthly(df)
     report_lag(df)
     report_money(df)
-    save_html_report(df)
+    save_html_report(df, synthetic=synthetic)
 
     print("\n" + "=" * 60)
     print("Реальные данные не публикуются: только агрегаты, без строк и названий.")
