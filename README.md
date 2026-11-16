@@ -51,6 +51,12 @@ python analyze.py           # анализ sample_data.csv
 Результат — отчёт в консоли и страница `report.html`: главная цифра,
 светофор показателей и пустой блок «Что исправить».
 
+Тесты:
+
+```bash
+python -m pytest tests/ -v
+```
+
 Свои данные — CSV из интерфейса Битрикс24 (русские названия колонок)
 или xlsx, выгруженный через API:
 
@@ -87,6 +93,9 @@ src/
   reports.py         # отчёты в консоль: застрявшие, по времени, по менеджерам,
                      # WhatsApp по месяцам, оценка потерь
   html_report.py     # страница report.html
+tests/
+  test_stages.py     # какие стадии считаются новыми и выигранными
+  test_light.py      # цвета светофора по порогам
 ```
 
 ## Данные и приватность
@@ -103,4 +112,4 @@ src/
 
 ## Стек
 
-Python, pandas, numpy, Bitrix24 REST API (crm.deal.list), openpyxl, requests.
+Python, pandas, numpy, pytest, Bitrix24 REST API (crm.deal.list), openpyxl, requests.
