@@ -1,115 +1,123 @@
-# Анализ обработки заявок в Bitrix24
+# Bitrix24 lead-handling analysis
 
-Аналитический проект: поиск причин потери входящих обращений в CRM
-торговой компании. Реальные данные не публикуются — в репозитории
-только код и синтетический пример с той же структурой.
+**English** | [Русский](README.ru.md)
 
-## Задача
+An analytics project that finds where incoming leads get lost in the CRM
+of a trading company. The real data is not published: the repository holds
+only the code and a synthetic sample with the same structure.
 
-У компании падала конверсия входящих обращений. Гипотез было много
-(«канал плохой», «менеджеры медленные»), но подтверждались они
-ощущениями, а не данными. Нужно было по выгрузке сделок из Bitrix24
-ответить: где именно теряются заявки и что это за потеря — канал,
-люди или процесс.
+## The problem
 
-## Данные
+The company's conversion of incoming leads was falling. There were plenty of
+hypotheses ("the channel is bad", "the managers are slow"), but they rested on
+impressions, not data. The task was to take a deal export from Bitrix24 and
+answer: where exactly are leads lost, and is the cause the channel, the people
+or the process?
 
-Выгрузка `crm.deal.list` из Bitrix24 REST API: **~17,6 тыс. сделок**
-за три года. Поля: источник, стадия, даты создания и изменения,
-ответственный, сумма. Персональных данных, названий и сумм в
-репозитории нет — см. раздел «Данные и приватность».
+## Data
 
-## Выводы (обезличенно)
+A `crm.deal.list` export from the Bitrix24 REST API: **about 17,600 deals**
+over three years. Fields: source, stage, creation and modification dates,
+assignee, amount. The repository contains no personal data, company names or
+amounts; see "Data and privacy" below.
 
-- Около **четверти всех заявок** застряло на стадии «Новая» и не было
-  обработано вовсе; медианный возраст такой заявки — свыше полугода.
-- Три четверти застрявших пришли из **WhatsApp-канала**.
-- Помесячная разбивка показала: в ранние месяцы тот же канал
-  обрабатывался почти полностью (доля необработанных — единицы
-  процентов), а затем несколько месяцев подряд необработанными
-  оставались **более 85% обращений**. Вывод: проблема не в канале,
-  а в срыве процесса при росте объёма.
-- Поле суммы сделки заполнено менее чем в 1% строк — денежную оценку
-  потерь можно давать только как порядок величины с оговорками.
+## Findings (anonymised)
 
-Отдельная часть работы — честность метрик. Время первого ответа
-анализатор **не измеряет**: в выгрузке сделок есть только дата последнего
-изменения (`DATE_MODIFY`), а не первого касания. Поэтому отчёт говорит
-о «возрасте необработанной заявки» и «заявках без единого изменения»,
-а не о скорости ответа. Точка отсчёта — максимальная дата в данных,
-а не `now()`; заявки моложе суток застрявшими не считаются; медиана
-вместо среднего из-за длинного хвоста; воронки не смешиваются.
+- About **a quarter of all leads** were stuck at the "New" stage and never
+  handled; the median age of such a lead was over six months.
+- Three quarters of the stuck leads came from the **WhatsApp channel**.
+- A month-by-month breakdown showed that in the early months the same channel
+  was handled almost completely (a few percent unhandled), and then for
+  several months in a row **more than 85% of requests** stayed unhandled.
+  Conclusion: the problem is not the channel but a process that broke down as
+  volume grew.
+- The deal amount is filled in for fewer than 1% of rows, so losses in money
+  can only be given as an order of magnitude, with caveats.
 
-## Как запустить
+A separate part of the work is honest metrics. The analyzer **does not
+measure** first response time: a deal export has only the date of the last
+change (`DATE_MODIFY`), not of the first touch. So the report speaks of the
+"age of an unhandled lead" and "leads with no changes after creation", not of
+response speed. The reference point is the latest date in the data, not
+`now()`; leads younger than 24 hours are not counted as stuck; the median is
+used instead of the mean because of the long tail; pipelines are not mixed.
+
+## How to run
 
 ```bash
 pip install -r requirements.txt
-python generate_sample.py   # создаёт sample_data.csv (уже лежит в репо)
-python analyze.py           # анализ sample_data.csv
+python generate_sample.py   # creates sample_data.csv (already in the repo)
+python analyze.py           # analyses sample_data.csv
 ```
 
-Результат — отчёт в консоли и страница `report.html`: главная цифра,
-светофор показателей и пустой блок «Что исправить».
+The result is a console report and a `report.html` page: one headline number,
+a traffic light of indicators and an empty "What to fix" block. The report
+text is in Russian, as it was written for a Russian-speaking client.
 
-Тесты:
+Tests:
 
 ```bash
 python -m pytest tests/ -v
 ```
 
-Свои данные — CSV из интерфейса Битрикс24 (русские названия колонок)
-или xlsx, выгруженный через API:
+Your own data, either a CSV exported from the Bitrix24 interface (Russian
+column names) or an xlsx exported through the API:
 
 ```bash
 python analyze.py path/to/deals.csv
 ```
 
-Названия стадий, источников, рабочие часы и пороги светофора
-настраиваются в `src/config.py`.
+Stage names, sources, working hours and traffic-light thresholds are set in
+`src/config.py`.
 
-Выгрузка напрямую из Bitrix24 (токен — только в окружении,
-см. `.env.example`):
+Exporting directly from Bitrix24 (the token lives only in the environment,
+see `.env.example`):
 
 ```bash
 export BITRIX_WEBHOOK="https://<portal>.bitrix24.<tld>/rest/<user_id>/<token>/"
 python analyze.py --fetch
 ```
 
-**Данные синтетические.** Пример ниже построен по `sample_data.csv`:
-700 выдуманных сделок за 6 месяцев, имена менеджеров и суммы вымышлены.
+**The data below is synthetic.** The example is built from `sample_data.csv`:
+700 made-up deals over 6 months; manager names and amounts are fictional.
 
-![Пример отчёта на синтетических данных](docs/report.png)
+![Sample report on synthetic data](docs/report.png)
 
-## Структура
+## Structure
 
 ```
-analyze.py           # точка входа: загрузка → подготовка → отчёты
-generate_sample.py   # генератор синтетического датасета
-sample_data.csv      # синтетический пример (700 строк, значения выдуманы)
+analyze.py           # entry point: load → prepare → reports
+generate_sample.py   # synthetic dataset generator
+sample_data.csv      # synthetic sample (700 rows, made-up values)
 src/
-  config.py          # стадии, каналы, рабочие часы, пороги светофора
-  fetch.py           # постраничная выгрузка из Bitrix24 REST API
-  prepare.py         # загрузка csv/xlsx, обезличивание, производные поля
-  reports.py         # отчёты в консоль: застрявшие, по времени, по менеджерам,
-                     # WhatsApp по месяцам, оценка потерь
-  html_report.py     # страница report.html
+  config.py          # stages, channels, working hours, traffic-light thresholds
+  fetch.py           # paginated export from the Bitrix24 REST API
+  prepare.py         # csv/xlsx loading, anonymisation, derived fields
+  reports.py         # console reports: stuck leads, by time, by manager,
+                     # WhatsApp by month, loss estimate
+  html_report.py     # the report.html page
 tests/
-  test_stages.py     # какие стадии считаются новыми и выигранными
-  test_light.py      # цвета светофора по порогам
+  test_stages.py     # which stages count as new and as won
+  test_light.py      # traffic-light colours by threshold
 ```
 
-## Данные и приватность
+## Data and privacy
 
-Реальная выгрузка и любые csv/xlsx/json закрыты в `.gitignore`
-(исключение — `sample_data.csv`). Токен API живёт только в переменной
-окружения `BITRIX_WEBHOOK`. В коде и README нет названий компаний,
-настоящих имён, контактов и сумм: имена и суммы в примере выдуманы.
+The real export and any csv/xlsx/json files are excluded by `.gitignore`
+(the only exception is `sample_data.csv`). The API token lives only in the
+`BITRIX_WEBHOOK` environment variable. The code and README contain no company
+names, real people's names, contacts or amounts: the names and amounts in the
+sample are made up.
 
-При загрузке остаются только колонки, нужные анализу: комментарии,
-контакты и названия сделок отбрасываются сразу. Имена ответственных
-заменяются на «Менеджер N»; соответствие сохраняется в `managers_map.csv`
-рядом с выгрузкой. Этот файл и `report.html` тоже закрыты в `.gitignore`.
+On load, only the columns the analysis needs are kept: comments, contacts and
+deal titles are dropped immediately. Assignee names are replaced with
+"Менеджер N" ("Manager N"); the mapping is saved to `managers_map.csv` next to
+the export. That file and `report.html` are also excluded by `.gitignore`.
 
-## Стек
+## Stack
 
 Python, pandas, numpy, pytest, Bitrix24 REST API (crm.deal.list), openpyxl, requests.
+
+## License
+
+[MIT](LICENSE)
