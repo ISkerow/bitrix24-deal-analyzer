@@ -1,5 +1,7 @@
 # Анализ обработки заявок в Bitrix24
 
+[![tests](https://github.com/ISkerow/bitrix24-deal-analyzer/actions/workflows/tests.yml/badge.svg)](https://github.com/ISkerow/bitrix24-deal-analyzer/actions/workflows/tests.yml)
+
 [English](README.md) | **Русский**
 
 Аналитический проект: поиск причин потери входящих обращений в CRM
@@ -98,6 +100,7 @@ src/
 tests/
   test_stages.py     # какие стадии считаются новыми и выигранными
   test_light.py      # цвета светофора по порогам
+  test_metrics.py    # правило 24 часов, медианный возраст, рабочее время
 ```
 
 ## Данные и приватность

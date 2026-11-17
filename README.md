@@ -1,5 +1,7 @@
 # Bitrix24 lead-handling analysis
 
+[![tests](https://github.com/ISkerow/bitrix24-deal-analyzer/actions/workflows/tests.yml/badge.svg)](https://github.com/ISkerow/bitrix24-deal-analyzer/actions/workflows/tests.yml)
+
 **English** | [Русский](README.ru.md)
 
 An analytics project that finds where incoming leads get lost in the CRM
@@ -99,6 +101,7 @@ src/
 tests/
   test_stages.py     # which stages count as new and as won
   test_light.py      # traffic-light colours by threshold
+  test_metrics.py    # 24-hour rule, median age, working hours
 ```
 
 ## Data and privacy

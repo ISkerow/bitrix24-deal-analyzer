@@ -1,0 +1,4 @@
+[tool.pytest.ini_options]
+# Чтобы `pytest` находил пакет src так же, как `python -m pytest`.
+pythonpath = ["."]
+testpaths = ["tests"]
