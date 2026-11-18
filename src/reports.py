@@ -105,7 +105,7 @@ def work_period(df: pd.DataFrame) -> np.ndarray:
     local = df["created"].dt.tz_convert(CLIENT_TZ)
     hhmm = local.dt.strftime("%H:%M")
     return np.select(
-        [local.dt.dayofweek >= 5,  # 5 — суббота, 6 — воскресенье
+        [local.dt.day_of_week >= 5,  # 5 — суббота, 6 — воскресенье
          (hhmm >= WORK_START) & (hhmm < WORK_END)],
         ["Выходные", "Будни, рабочее время"],
         default="Будни, вне рабочего времени",
